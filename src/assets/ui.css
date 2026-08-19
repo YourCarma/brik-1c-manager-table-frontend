@@ -1,0 +1,2660 @@
+/* ===========================================================================
+   ФАКТ · Управленческая таблица — визуальный слой
+   Единственный источник токенов и базовых примитивов. Tailwind CSS v4, CSS-first.
+
+   Нейтральная система: серая шкала + один сдержанный акцент. Никакого
+   фирменного языка — интерфейс не должен спорить с данными.
+
+   Продуктовые ограничения (не предмет вкуса): ТЗ_Фронтенд.md разделы 3, 5.3, 9, 10.1
+
+   Принципы:
+     1. Плоскости различаются тоном и мягкой тенью, а не толстыми рамками.
+     2. Скругления умеренные: 6px контролы, 8–10px карточки и панели.
+     3. Акцент — редкий: главное действие, активная вкладка, фокус, сортировка.
+        Цвет статуса (успех / внимание / отказ) к акценту не относится.
+     4. Иерархия в три ступени: заголовок экрана → заголовок блока → тихий фон.
+     5. Любая сумма — tabular-nums, вправо. Ноль пишется 0,00, пустая ячейка
+        означает «нет данных» (ТЗ 5.3.2).
+     6. Состояние никогда не передаётся одним только цветом: рядом всегда
+        слово, а у индикатора — ещё и форма заливки (критерий приёмки 11.7).
+     7. Шрифты только системные: интернета в сети заказчика может не быть (ТЗ 10.1).
+     8. Плотность таблицы неприкосновенна: строка 30px. Цифры обязаны
+        помещаться на экран — ради этого экран и открывают.
+   =========================================================================== */
+
+@import "tailwindcss";
+
+/* ---------------------------------------------------------------------------
+   ТОКЕНЫ
+   `static` — чтобы все переменные попадали в :root, даже если утилита ещё не
+   использована ни в одном компоненте. Тёмная тема переопределяет те же
+   переменные ниже, поэтому утилиты Tailwind (`bg-ui-surface`) работают в обеих.
+   --------------------------------------------------------------------------- */
+@theme static {
+  /* ===== Акцент ========================================================== */
+  --color-ui-accent: #4f46e5;
+  --color-ui-accent-hover: #4338ca;
+  --color-ui-accent-active: #3730a3;
+  --color-ui-accent-soft: #eef2ff; /* промывка: ховер строки, выделение */
+  --color-ui-accent-line: #c7d2fe;
+  --color-ui-on-accent: #ffffff;
+
+  /* ===== Текст =========================================================== */
+  --color-ui-fg: #18181b; /* основной текст */
+  --color-ui-fg-weak: #52525b; /* вторичный текст, подписи под полями */
+  --color-ui-fg-muted: #71717a; /* надзаголовки, единицы измерения, шапки */
+  --color-ui-fg-faint: #a1a1aa; /* выключенный текст, плейсхолдер */
+
+  /* Инверсная плоскость: сводка периода, номер шага, ховер тёмной кнопки */
+  --color-ui-inverse: #18181b;
+  --color-ui-inverse-soft: #27272a;
+  --color-ui-on-inverse: #fafafa;
+
+  /* ===== Плоскости ======================================================= */
+  --color-ui-page: #f6f7f9; /* фон страницы */
+  --color-ui-surface: #ffffff; /* карточка, шапка приложения, диалог */
+  --color-ui-surface-soft: #fafafa; /* панель над таблицей */
+  --color-ui-surface-sunken: #f4f4f5; /* вложенные панели, шапка и итоги таблицы */
+  --color-ui-sheet: #ffffff; /* рабочая плоскость таблицы */
+  --color-ui-sheet-alt: #fafafa; /* зебра */
+
+  /* ===== Линии =========================================================== */
+  --color-ui-line: #e4e4e7; /* граница карточки, поля, строки таблицы */
+  --color-ui-line-strong: #d4d4d8; /* структурная граница: колонка-ключ, итоги */
+  --color-ui-line-soft: #f0f0f1; /* разлиновка внутри плотных блоков */
+  --color-ui-wash: rgb(24 24 27 / 0.05); /* ховер призрачной кнопки */
+
+  /* ===== Статусы =========================================================
+     Цвет всегда идёт вместе со словом: сам по себе он ничего не сообщает */
+  --color-ui-danger: #dc2626;
+  --color-ui-danger-hover: #b91c1c;
+  --color-ui-danger-active: #991b1b;
+  --color-ui-danger-soft: #fef2f2;
+  --color-ui-danger-line: #fecaca;
+  --color-ui-on-danger: #ffffff;
+
+  --color-ui-warn: #b45309;
+  --color-ui-warn-soft: #fffbeb;
+  --color-ui-warn-line: #fde68a;
+
+  --color-ui-success: #15803d;
+  --color-ui-success-soft: #f0fdf4;
+  --color-ui-success-line: #bbf7d0;
+
+  --color-ui-focus: #4f46e5;
+
+  /* ===== Типографика =====================================================
+     Только системные стеки: внешних шрифтов не подгружается (ТЗ 10.1) */
+  --font-ui-sans:
+    system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial,
+    "Liberation Sans", sans-serif;
+  /* «Моно-цифры» = табличные цифры того же шрифта, а не моноширинный шрифт:
+     колонка складывается глазом, а гарнитура интерфейса не рвётся */
+  --font-ui-num:
+    system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial,
+    "Liberation Sans", sans-serif;
+  /* Единственное место моноширинного: ответ сервиса, формула, код */
+  --font-ui-mono: ui-monospace, "Cascadia Mono", "Consolas", "Liberation Mono", monospace;
+
+  --text-ui-display: clamp(30px, 5vw, 44px);
+  --text-ui-display--line-height: 1.05;
+  --text-ui-display--letter-spacing: -0.025em;
+  --text-ui-display--font-weight: 650;
+
+  --text-ui-h1: 26px;
+  --text-ui-h1--line-height: 1.2;
+  --text-ui-h1--letter-spacing: -0.02em;
+  --text-ui-h1--font-weight: 650;
+
+  --text-ui-h2: 19px;
+  --text-ui-h2--line-height: 1.3;
+  --text-ui-h2--letter-spacing: -0.015em;
+  --text-ui-h2--font-weight: 600;
+
+  --text-ui-h3: 15px;
+  --text-ui-h3--line-height: 1.35;
+  --text-ui-h3--letter-spacing: -0.005em;
+  --text-ui-h3--font-weight: 600;
+
+  /* Надзаголовок над заголовком экрана: тихий капс без вычурной разрядки */
+  --text-ui-kicker: 11px;
+  --text-ui-kicker--line-height: 1.4;
+  --text-ui-kicker--letter-spacing: 0.08em;
+  --text-ui-kicker--font-weight: 600;
+
+  /* Подпись: ярлык поля, плашка, шапка таблицы, подпись счётчика */
+  --text-ui-cap: 12px;
+  --text-ui-cap--line-height: 1.35;
+  --text-ui-cap--letter-spacing: 0;
+  --text-ui-cap--font-weight: 500;
+
+  --text-ui-body: 14px;
+  --text-ui-body--line-height: 1.6;
+
+  --text-ui-ui: 14px; /* контролы, поля, навигация */
+  --text-ui-ui--line-height: 1.4;
+
+  --text-ui-table: 13px; /* тело таблицы */
+  --text-ui-table--line-height: 1.3;
+
+  --text-ui-num: 13px; /* денежная ячейка */
+  --text-ui-num--line-height: 1.3;
+
+  --text-ui-micro: 11px; /* технические подписи, GUID в диагностике */
+  --text-ui-micro--line-height: 1.4;
+
+  --tracking-ui-kicker: 0.08em;
+  --tracking-ui-cap: 0;
+  --tracking-ui-tight: -0.02em;
+
+  /* ===== Мера строки ===================================================== */
+  --ui-measure: 68ch; /* максимальная длина абзаца */
+  /* Ширина блока-сообщения = мера абзаца плюс его собственные поля и рамка */
+  --ui-notice-w: calc(var(--ui-measure) + 38px);
+  --ui-notice-w-tight: calc(var(--ui-measure) + 30px);
+
+  /* ===== Границы ========================================================= */
+  --ui-border: 2px; /* акцентная граница: активный элемент, невалидное поле */
+  --ui-border-hair: 1px; /* обычная граница: всё остальное */
+  --ui-rule: 3px; /* линейка-сигнал слева у блока-сообщения */
+  --ui-rule-thin: 2px; /* акцент: активная вкладка, полоса ожидания */
+  --ui-underline: 1px; /* черта под шапкой приложения */
+
+  /* ===== Скругления ====================================================== */
+  --radius-ui-none: 0px;
+  --radius-ui-sm: 4px; /* плашка внутри таблицы, мелкий контрол */
+  --radius-ui: 6px; /* кнопка, поле, вкладка */
+  --radius-ui-lg: 10px; /* карточка, панель, диалог */
+  --radius-ui-full: 999px; /* плашка-пилюля, чип */
+
+  /* ===== Тени: мягкие и короткие, плоскость не «взлетает» ================ */
+  --shadow-ui-sm: 0 1px 2px 0 rgb(24 24 27 / 0.05);
+  --shadow-ui: 0 1px 2px 0 rgb(24 24 27 / 0.05), 0 1px 3px 0 rgb(24 24 27 / 0.06);
+  --shadow-ui-md: 0 2px 4px -2px rgb(24 24 27 / 0.08), 0 4px 12px -2px rgb(24 24 27 / 0.08);
+  --shadow-ui-lg: 0 8px 24px -6px rgb(24 24 27 / 0.16), 0 2px 6px -2px rgb(24 24 27 / 0.08);
+
+  /* ===== Плотность: инструмент экономиста на 8 часов =====================
+     Внутри таблицы плотность не меняется — цифры обязаны помещаться на экран */
+  --ui-control-h: 32px; /* кнопка, поле */
+  --ui-control-h-sm: 26px;
+  --ui-row-h: 30px; /* строка таблицы */
+  --ui-head-h: 34px; /* шапка таблицы */
+  --ui-cell-x: 10px;
+  --ui-cell-y: 5px;
+  --ui-pad-card: 20px;
+  --ui-gap: 12px;
+  --ui-gap-lg: 20px;
+  --ui-gap-screen: 24px; /* между блоками экрана */
+  --ui-shell-w: 1600px; /* предельная ширина рабочей области */
+
+  /* ===== Движение ======================================================== */
+  --ui-dur-fast: 100ms;
+  --ui-dur: 160ms;
+  --ease-ui: cubic-bezier(0.2, 0, 0, 1);
+
+  --animate-ui-sweep: ui-sweep 1100ms linear infinite;
+
+  @keyframes ui-sweep {
+    from {
+      transform: translateX(-100%);
+    }
+    to {
+      transform: translateX(250%);
+    }
+  }
+}
+
+/* ---------------------------------------------------------------------------
+   ТЁМНАЯ ТЕМА
+   Роли те же, значения другие. Порядок обязателен: сначала системная
+   настройка (только если пользователь не выбрал светлую вручную), затем
+   явный выбор — он должен побеждать систему в обе стороны.
+   --------------------------------------------------------------------------- */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --color-ui-accent: #818cf8;
+    --color-ui-accent-hover: #a5b4fc;
+    --color-ui-accent-active: #c7d2fe;
+    --color-ui-accent-soft: #232338;
+    --color-ui-accent-line: #3f3f7a;
+    --color-ui-on-accent: #10101c;
+
+    --color-ui-fg: #f4f4f5;
+    --color-ui-fg-weak: #b4b4bb;
+    --color-ui-fg-muted: #8f8f98;
+    --color-ui-fg-faint: #63636c;
+
+    --color-ui-inverse: #e4e4e7;
+    --color-ui-inverse-soft: #d4d4d8;
+    --color-ui-on-inverse: #18181b;
+
+    --color-ui-page: #0b0b0e;
+    --color-ui-surface: #161619;
+    --color-ui-surface-soft: #1b1b1f;
+    --color-ui-surface-sunken: #202024;
+    --color-ui-sheet: #131316;
+    --color-ui-sheet-alt: #17171b;
+
+    --color-ui-line: #2a2a30;
+    --color-ui-line-strong: #3d3d45;
+    --color-ui-line-soft: #212127;
+    --color-ui-wash: rgb(244 244 245 / 0.07);
+
+    --color-ui-danger: #f87171;
+    --color-ui-danger-hover: #fca5a5;
+    --color-ui-danger-active: #fecaca;
+    --color-ui-danger-soft: #2a1717;
+    --color-ui-danger-line: #5c2626;
+    --color-ui-on-danger: #1a0d0d;
+
+    --color-ui-warn: #fbbf24;
+    --color-ui-warn-soft: #291f0e;
+    --color-ui-warn-line: #5c421a;
+
+    --color-ui-success: #4ade80;
+    --color-ui-success-soft: #10231a;
+    --color-ui-success-line: #1f4d33;
+
+    --color-ui-focus: #818cf8;
+
+    --shadow-ui-sm: 0 1px 2px 0 rgb(0 0 0 / 0.4);
+    --shadow-ui: 0 1px 2px 0 rgb(0 0 0 / 0.4), 0 1px 3px 0 rgb(0 0 0 / 0.35);
+    --shadow-ui-md: 0 2px 4px -2px rgb(0 0 0 / 0.5), 0 4px 12px -2px rgb(0 0 0 / 0.45);
+    --shadow-ui-lg: 0 8px 24px -6px rgb(0 0 0 / 0.65), 0 2px 6px -2px rgb(0 0 0 / 0.5);
+  }
+}
+
+:root[data-theme="dark"] {
+  --color-ui-accent: #818cf8;
+  --color-ui-accent-hover: #a5b4fc;
+  --color-ui-accent-active: #c7d2fe;
+  --color-ui-accent-soft: #232338;
+  --color-ui-accent-line: #3f3f7a;
+  --color-ui-on-accent: #10101c;
+
+  --color-ui-fg: #f4f4f5;
+  --color-ui-fg-weak: #b4b4bb;
+  --color-ui-fg-muted: #8f8f98;
+  --color-ui-fg-faint: #63636c;
+
+  --color-ui-inverse: #e4e4e7;
+  --color-ui-inverse-soft: #d4d4d8;
+  --color-ui-on-inverse: #18181b;
+
+  --color-ui-page: #0b0b0e;
+  --color-ui-surface: #161619;
+  --color-ui-surface-soft: #1b1b1f;
+  --color-ui-surface-sunken: #202024;
+  --color-ui-sheet: #131316;
+  --color-ui-sheet-alt: #17171b;
+
+  --color-ui-line: #2a2a30;
+  --color-ui-line-strong: #3d3d45;
+  --color-ui-line-soft: #212127;
+  --color-ui-wash: rgb(244 244 245 / 0.07);
+
+  --color-ui-danger: #f87171;
+  --color-ui-danger-hover: #fca5a5;
+  --color-ui-danger-active: #fecaca;
+  --color-ui-danger-soft: #2a1717;
+  --color-ui-danger-line: #5c2626;
+  --color-ui-on-danger: #1a0d0d;
+
+  --color-ui-warn: #fbbf24;
+  --color-ui-warn-soft: #291f0e;
+  --color-ui-warn-line: #5c421a;
+
+  --color-ui-success: #4ade80;
+  --color-ui-success-soft: #10231a;
+  --color-ui-success-line: #1f4d33;
+
+  --color-ui-focus: #818cf8;
+
+  --shadow-ui-sm: 0 1px 2px 0 rgb(0 0 0 / 0.4);
+  --shadow-ui: 0 1px 2px 0 rgb(0 0 0 / 0.4), 0 1px 3px 0 rgb(0 0 0 / 0.35);
+  --shadow-ui-md: 0 2px 4px -2px rgb(0 0 0 / 0.5), 0 4px 12px -2px rgb(0 0 0 / 0.45);
+  --shadow-ui-lg: 0 8px 24px -6px rgb(0 0 0 / 0.65), 0 2px 6px -2px rgb(0 0 0 / 0.5);
+}
+
+/* ===========================================================================
+   БАЗОВЫЙ СЛОЙ
+   =========================================================================== */
+@layer base {
+  *,
+  *::before,
+  *::after {
+    box-sizing: border-box;
+    border-width: 0;
+    border-style: solid;
+  }
+
+  html {
+    block-size: 100%;
+    color-scheme: light;
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
+    scrollbar-color: var(--color-ui-line-strong) transparent;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    html:not([data-theme="light"]) {
+      color-scheme: dark;
+    }
+  }
+
+  html[data-theme="dark"] {
+    color-scheme: dark;
+  }
+
+  html[data-theme="light"] {
+    color-scheme: light;
+  }
+
+  body {
+    margin: 0;
+    min-block-size: 100%;
+    background-color: var(--color-ui-page);
+    color: var(--color-ui-fg);
+    font-family: var(--font-ui-sans);
+    font-size: var(--text-ui-body);
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+  }
+
+  /* Прокручивается таблица, а не страница (ТЗ 9) — оболочка держит высоту окна */
+  #app {
+    display: flex;
+    flex-direction: column;
+    min-block-size: 100vh;
+  }
+
+  h1,
+  h2,
+  h3,
+  h4 {
+    margin: 0;
+    font-weight: 600;
+    letter-spacing: var(--tracking-ui-tight);
+    line-height: 1.25;
+    text-wrap: balance;
+  }
+
+  p {
+    margin: 0;
+    max-inline-size: var(--ui-measure);
+  }
+
+  a {
+    color: var(--color-ui-accent);
+    text-decoration: none;
+  }
+
+  a:hover {
+    text-decoration: underline;
+    text-underline-offset: 3px;
+    text-decoration-thickness: 1px;
+  }
+
+  button,
+  input,
+  select,
+  textarea {
+    font: inherit;
+    color: inherit;
+    margin: 0;
+  }
+
+  button {
+    background: none;
+    cursor: pointer;
+  }
+
+  ::placeholder {
+    color: var(--color-ui-fg-faint);
+    opacity: 1;
+  }
+
+  /* Технический фрагмент в тексте: имя файла, номер заказа, правило фильтра */
+  code,
+  kbd,
+  samp,
+  pre {
+    font-family: var(--font-ui-mono);
+  }
+
+  code,
+  kbd {
+    padding: 1px 5px;
+    border: var(--ui-border-hair) solid var(--color-ui-line);
+    border-radius: var(--radius-ui-sm);
+    background-color: var(--color-ui-surface-sunken);
+    font-size: 0.92em;
+    word-break: break-word;
+  }
+
+  ::selection {
+    background-color: var(--color-ui-accent);
+    color: var(--color-ui-on-accent);
+  }
+
+  img,
+  svg {
+    display: block;
+    max-inline-size: 100%;
+  }
+
+  table {
+    border-collapse: separate; /* липкие ячейки при collapse теряют границы */
+    border-spacing: 0;
+  }
+
+  :focus {
+    outline: none;
+  }
+
+  :focus-visible {
+    outline: var(--ui-border) solid var(--color-ui-focus);
+    outline-offset: 2px;
+  }
+
+  /* На залитых плоскостях кольцо фокуса переворачивается, иначе оно тонет */
+  .ui-on-inverse :focus-visible,
+  .ui-on-accent :focus-visible,
+  .ui-btn-primary:focus-visible,
+  .ui-btn-danger:focus-visible {
+    outline-color: var(--color-ui-surface);
+  }
+
+  /* Денежные ячейки: табличные цифры без исключений (ТЗ 5.3) */
+  .ui-num,
+  [data-num],
+  .ui-table th,
+  .ui-table td,
+  input[inputmode="decimal"],
+  input[inputmode="numeric"],
+  output,
+  time {
+    font-variant-numeric: tabular-nums lining-nums;
+    font-feature-settings:
+      "tnum" 1,
+      "lnum" 1;
+  }
+
+  [hidden] {
+    display: none !important;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+    }
+  }
+}
+
+/* ===========================================================================
+   ПРИМИТИВЫ
+   =========================================================================== */
+@layer components {
+  /* ---------------------------------------------------------------------
+     Типографские примитивы
+     --------------------------------------------------------------------- */
+
+  /* Надзаголовок над заголовком экрана: тихая подпись, а не второй заголовок */
+  .ui-kicker {
+    display: block;
+    font-size: var(--text-ui-kicker);
+    font-weight: 600;
+    line-height: 1.4;
+    letter-spacing: var(--tracking-ui-kicker);
+    text-transform: uppercase;
+    color: var(--color-ui-fg-muted);
+  }
+
+  .ui-title {
+    font-size: var(--text-ui-h1);
+    font-weight: 650;
+    line-height: 1.2;
+    letter-spacing: var(--tracking-ui-tight);
+  }
+
+  /* Вторая ступень иерархии — заголовок блока внутри экрана */
+  .ui-section {
+    display: block;
+    margin-block-end: var(--ui-gap);
+    font-size: var(--text-ui-h3);
+    font-weight: 600;
+    line-height: 1.35;
+    letter-spacing: -0.005em;
+    text-transform: none;
+    color: var(--color-ui-fg);
+  }
+
+  .ui-label {
+    display: block;
+    margin-block-end: 4px;
+    font-size: var(--text-ui-cap);
+    font-weight: 500;
+    letter-spacing: var(--tracking-ui-cap);
+    color: var(--color-ui-fg-weak);
+  }
+
+  /* Вторичный абзац: подзаголовок экрана, пояснение под полем. Это лид,
+     а не техподпись — настоящая техподпись живёт в `.ui-micro` */
+  .ui-hint {
+    font-size: var(--text-ui-ui);
+    line-height: 1.5;
+    color: var(--color-ui-fg-weak);
+    max-inline-size: var(--ui-measure);
+  }
+
+  /* «Нет данных» — не ноль. Ноль пишется 0,00 (ТЗ 5.3.2) */
+  .ui-nodata {
+    font-size: var(--text-ui-micro);
+    color: var(--color-ui-fg-faint);
+  }
+
+  /* Черта раздела под заголовком экрана: волосяная линия и короткий
+     акцентный засечек в начале — документ делится, веса не прибавляется */
+  .ui-rule-accent {
+    position: relative;
+    block-size: var(--ui-border-hair);
+    background-color: var(--color-ui-line);
+  }
+
+  .ui-rule-accent::before {
+    content: "";
+    position: absolute;
+    inset-block-start: calc(var(--ui-rule) * -1 + var(--ui-border-hair));
+    inset-inline-start: 0;
+    inline-size: 44px;
+    block-size: var(--ui-rule);
+    border-radius: var(--radius-ui-full);
+    background-color: var(--color-ui-accent);
+  }
+
+  .ui-rule-accent-thin {
+    block-size: var(--ui-rule-thin);
+    border-radius: var(--radius-ui-full);
+    background-color: var(--color-ui-accent);
+  }
+
+  .ui-rule-line {
+    block-size: var(--ui-underline);
+    background-color: var(--color-ui-line);
+  }
+
+  /* Штриховка — фактура «здесь данных нет». Твёрдые стопы, не растяжка */
+  .ui-hatch {
+    background-image: repeating-linear-gradient(
+      45deg,
+      var(--color-ui-wash) 0 3px,
+      transparent 3px 8px
+    );
+  }
+
+  /* ---------------------------------------------------------------------
+     Карточка
+     --------------------------------------------------------------------- */
+  .ui-card {
+    display: block;
+    border: var(--ui-border-hair) solid var(--color-ui-line);
+    border-radius: var(--radius-ui-lg);
+    background-color: var(--color-ui-surface);
+    box-shadow: var(--shadow-ui-sm);
+    padding: var(--ui-pad-card);
+  }
+
+  /* Карточка на рабочей плоскости — под таблицы и разборы цифр */
+  .ui-card-sheet {
+    background-color: var(--color-ui-sheet);
+  }
+
+  /* Инверсия: сводка периода, шапка результата */
+  .ui-card-inverse {
+    background-color: var(--color-ui-inverse);
+    color: var(--color-ui-on-inverse);
+    border-color: var(--color-ui-inverse);
+  }
+
+  .ui-card-inverse .ui-kicker,
+  .ui-card-inverse .ui-hint {
+    color: color-mix(in srgb, var(--color-ui-on-inverse) 70%, transparent);
+  }
+
+  /* Под таблицу: своих полей нет, рамку и скругление держит карточка,
+     содержимое обрезается по радиусу */
+  .ui-card-flush {
+    padding: 0;
+    overflow: hidden;
+  }
+
+  /* ---------------------------------------------------------------------
+     Кнопка
+     Состояния: default / hover / focus-visible / active / disabled / loading
+     --------------------------------------------------------------------- */
+  .ui-btn {
+    position: relative;
+    overflow: hidden;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    block-size: var(--ui-control-h);
+    padding-inline: 14px;
+    border: var(--ui-border-hair) solid transparent;
+    border-radius: var(--radius-ui);
+    background-color: transparent;
+    color: var(--color-ui-fg);
+    font-family: var(--font-ui-sans);
+    font-size: 13px;
+    font-weight: 500;
+    letter-spacing: 0;
+    text-transform: none;
+    text-decoration: none;
+    white-space: nowrap;
+    cursor: pointer;
+    user-select: none;
+    transition:
+      background-color var(--ui-dur-fast) var(--ease-ui),
+      color var(--ui-dur-fast) var(--ease-ui),
+      border-color var(--ui-dur-fast) var(--ease-ui),
+      box-shadow var(--ui-dur-fast) var(--ease-ui);
+  }
+
+  .ui-btn:hover {
+    text-decoration: none;
+  }
+
+  .ui-btn-sm {
+    block-size: var(--ui-control-h-sm);
+    padding-inline: 10px;
+    font-size: 12px;
+  }
+
+  /* Главное действие экрана — единственная акцентная плоскость в ряду */
+  .ui-btn-primary {
+    background-color: var(--color-ui-accent);
+    color: var(--color-ui-on-accent);
+    border-color: var(--color-ui-accent);
+    box-shadow: var(--shadow-ui-sm);
+  }
+
+  .ui-btn-primary:hover {
+    background-color: var(--color-ui-accent-hover);
+    border-color: var(--color-ui-accent-hover);
+  }
+
+  .ui-btn-primary:active {
+    background-color: var(--color-ui-accent-active);
+    border-color: var(--color-ui-accent-active);
+    box-shadow: none;
+  }
+
+  /* Альтернатива и навигация: плоскость в обычной рамке */
+  .ui-btn-secondary {
+    background-color: var(--color-ui-surface);
+    color: var(--color-ui-fg);
+    border-color: var(--color-ui-line);
+    box-shadow: var(--shadow-ui-sm);
+  }
+
+  .ui-btn-secondary:hover {
+    background-color: var(--color-ui-surface-sunken);
+    border-color: var(--color-ui-line-strong);
+  }
+
+  .ui-btn-secondary:active {
+    background-color: var(--color-ui-surface-sunken);
+    box-shadow: none;
+  }
+
+  /* Разрушающее действие: единственный красный в ряду кнопок */
+  .ui-btn-danger {
+    background-color: var(--color-ui-danger);
+    color: var(--color-ui-on-danger);
+    border-color: var(--color-ui-danger);
+    box-shadow: var(--shadow-ui-sm);
+  }
+
+  .ui-btn-danger:hover {
+    background-color: var(--color-ui-danger-hover);
+    border-color: var(--color-ui-danger-hover);
+  }
+
+  .ui-btn-danger:active {
+    background-color: var(--color-ui-danger-active);
+    border-color: var(--color-ui-danger-active);
+    box-shadow: none;
+  }
+
+  /* Второстепенное действие в плотных панелях и шапках таблиц.
+     Текст в полную силу: приглушённая кнопка неотличима от выключенной,
+     а это разные вещи — одно действие доступно, другое нет */
+  .ui-btn-ghost {
+    border-color: transparent;
+    background-color: transparent;
+    color: var(--color-ui-fg);
+  }
+
+  .ui-btn-ghost:hover {
+    background-color: var(--color-ui-wash);
+  }
+
+  .ui-btn-ghost:active {
+    background-color: color-mix(in srgb, var(--color-ui-fg) 10%, transparent);
+  }
+
+  /* Выключенная — приглушённая, но читаемая: не полупрозрачная «дымка» */
+  .ui-btn:disabled,
+  .ui-btn[aria-disabled="true"] {
+    background-color: var(--color-ui-surface-sunken);
+    color: var(--color-ui-fg-faint);
+    border-color: var(--color-ui-line);
+    box-shadow: none;
+    cursor: not-allowed;
+  }
+
+  .ui-btn-ghost:disabled,
+  .ui-btn-ghost[aria-disabled="true"] {
+    background-color: transparent;
+    border-color: transparent;
+  }
+
+  .ui-btn:disabled:hover,
+  .ui-btn[aria-disabled="true"]:hover {
+    background-color: var(--color-ui-surface-sunken);
+    color: var(--color-ui-fg-faint);
+  }
+
+  .ui-btn-ghost:disabled:hover,
+  .ui-btn-ghost[aria-disabled="true"]:hover {
+    background-color: transparent;
+  }
+
+  /* Идёт операция: расчёт занимает минуты (ТЗ 7.1), подпись остаётся
+     читаемой, у основания идёт бегущая каретка */
+  .ui-btn[data-loading] {
+    cursor: progress;
+    pointer-events: none;
+  }
+
+  .ui-btn[data-loading]::after {
+    content: "";
+    position: absolute;
+    inset-block-end: 0;
+    inset-inline-start: 0;
+    inline-size: 40%;
+    block-size: var(--ui-rule-thin);
+    background-color: var(--color-ui-accent);
+    animation: var(--animate-ui-sweep);
+  }
+
+  .ui-btn-primary[data-loading]::after,
+  .ui-btn-danger[data-loading]::after {
+    background-color: color-mix(in srgb, var(--color-ui-on-accent) 80%, transparent);
+  }
+
+  /* Самостоятельная полоса ожидания — для долгих операций вне кнопки */
+  .ui-progress {
+    position: relative;
+    overflow: hidden;
+    block-size: var(--ui-rule);
+    border-radius: var(--radius-ui-full);
+    background-color: var(--color-ui-surface-sunken);
+  }
+
+  .ui-progress::after {
+    content: "";
+    position: absolute;
+    inset-block: 0;
+    inset-inline-start: 0;
+    inline-size: 30%;
+    border-radius: var(--radius-ui-full);
+    background-color: var(--color-ui-accent);
+    animation: var(--animate-ui-sweep);
+  }
+
+  /* ---------------------------------------------------------------------
+     Поле ввода
+     --------------------------------------------------------------------- */
+  .ui-input {
+    display: block;
+    inline-size: 100%;
+    block-size: var(--ui-control-h);
+    padding-inline: 10px;
+    border: var(--ui-border-hair) solid var(--color-ui-line-strong);
+    border-radius: var(--radius-ui);
+    background-color: var(--color-ui-surface);
+    color: var(--color-ui-fg);
+    font-family: var(--font-ui-sans);
+    font-size: var(--text-ui-ui);
+    line-height: 1.4;
+    box-shadow: var(--shadow-ui-sm);
+    transition:
+      border-color var(--ui-dur-fast) var(--ease-ui),
+      box-shadow var(--ui-dur-fast) var(--ease-ui);
+  }
+
+  textarea.ui-input {
+    block-size: auto;
+    min-block-size: calc(var(--ui-control-h) * 2);
+    padding-block: 6px;
+    resize: vertical;
+  }
+
+  .ui-input:hover {
+    border-color: var(--color-ui-fg-faint);
+  }
+
+  .ui-input:focus-visible {
+    outline: none;
+    border-color: var(--color-ui-focus);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-ui-focus) 22%, transparent);
+  }
+
+  .ui-input:disabled,
+  .ui-input[readonly] {
+    background-color: var(--color-ui-surface-sunken);
+    border-color: var(--color-ui-line);
+    color: var(--color-ui-fg-weak);
+    box-shadow: none;
+    cursor: not-allowed;
+  }
+
+  /* Ошибка ввода периода (ТЗ 8, код 400): рамка красная, текст рядом с полем.
+     `border-box` держит габарит — соседние контролы не сдвигаются */
+  .ui-input[aria-invalid="true"] {
+    border-color: var(--color-ui-danger);
+  }
+
+  .ui-input[aria-invalid="true"]:focus-visible {
+    border-color: var(--color-ui-danger);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-ui-danger) 22%, transparent);
+  }
+
+  .ui-input[data-loading] {
+    cursor: progress;
+  }
+
+  /* Поле суммы: цифры вправо, табличные */
+  .ui-input-num {
+    text-align: end;
+    font-variant-numeric: tabular-nums lining-nums;
+  }
+
+  /* Сообщение об ошибке под полем: заголовок, объяснение, ответ сервиса
+     и действие — ошибка всегда сопровождается действием (ТЗ 8.2) */
+  .ui-input-error {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 4px;
+    margin-block-start: 6px;
+    padding-inline-start: 10px;
+    border-inline-start: var(--ui-rule) solid var(--color-ui-danger);
+    font-size: var(--text-ui-micro);
+    line-height: 1.45;
+    color: var(--color-ui-fg);
+    max-inline-size: 48ch;
+  }
+
+  .ui-input-error strong {
+    font-size: var(--text-ui-ui);
+    font-weight: 600;
+    line-height: 1.3;
+  }
+
+  /* Селект рисует свою стрелку двумя градиентами: знак наследует цвет текста
+     и потому одинаково читается в обеих темах, внешних ресурсов не грузится */
+  select.ui-input {
+    appearance: none;
+    padding-inline-end: 28px;
+    background-image:
+      linear-gradient(45deg, transparent 50%, currentColor 50%),
+      linear-gradient(135deg, currentColor 50%, transparent 50%);
+    background-position:
+      right 14px center,
+      right 10px center;
+    background-size:
+      4px 4px,
+      4px 4px;
+    background-repeat: no-repeat;
+    cursor: pointer;
+  }
+
+  select.ui-input:disabled {
+    cursor: not-allowed;
+  }
+
+  /* ---------------------------------------------------------------------
+     Плашка
+     Форма — пилюля, признак несут цвет фона и слово внутри
+     --------------------------------------------------------------------- */
+  .ui-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 1px 9px;
+    border: var(--ui-border-hair) solid transparent;
+    border-radius: var(--radius-ui-full);
+    background-color: transparent;
+    color: var(--color-ui-fg);
+    font-size: var(--text-ui-cap);
+    font-weight: 500;
+    letter-spacing: var(--tracking-ui-cap);
+    line-height: 1.5;
+    white-space: nowrap;
+    text-decoration: none;
+  }
+
+  a.ui-badge:hover {
+    text-decoration: none;
+    border-color: currentColor;
+  }
+
+  /* Нейтральный: справочный признак — «в работе», «из кэша», «в расчёт» */
+  .ui-badge-neutral {
+    background-color: var(--color-ui-surface-sunken);
+    border-color: var(--color-ui-line);
+    color: var(--color-ui-fg-weak);
+  }
+
+  /* Внимание: unmatched, оборот без заказа */
+  .ui-badge-warn {
+    background-color: var(--color-ui-warn-soft);
+    border-color: var(--color-ui-warn-line);
+    color: var(--color-ui-warn);
+  }
+
+  /* Отказ. Без восклицаний и иконок — несходимость штатна (ТЗ С4) */
+  .ui-badge-deny {
+    background-color: var(--color-ui-danger-soft);
+    border-color: var(--color-ui-danger-line);
+    color: var(--color-ui-danger);
+  }
+
+  /* Успех */
+  .ui-badge-ok {
+    background-color: var(--color-ui-success-soft);
+    border-color: var(--color-ui-success-line);
+    color: var(--color-ui-success);
+  }
+
+  /* Плашка внутри таблицы: пилюля в плотной строке смотрится крупнее, чем есть */
+  .ui-table .ui-badge {
+    border-radius: var(--radius-ui-sm);
+    padding-block: 0;
+  }
+
+  /* ---------------------------------------------------------------------
+     Таблица
+     Липкая шапка, липкая колонка номера заказа, липкая строка итогов.
+     Прокручивается таблица, а не страница (ТЗ 9).
+     --------------------------------------------------------------------- */
+
+  /* Обёртка задаёт плоскость и обе прокрутки.
+     Высоту ограничивает экран: max-block-size ставится в месте применения */
+  .ui-table-wrap {
+    position: relative;
+    overflow: auto;
+    max-block-size: 100%;
+    border: var(--ui-border-hair) solid var(--color-ui-line);
+    border-radius: var(--radius-ui-lg);
+    background-color: var(--color-ui-sheet);
+    overscroll-behavior: contain;
+    scrollbar-width: thin;
+    scrollbar-color: var(--color-ui-line-strong) transparent;
+  }
+
+  .ui-table {
+    inline-size: 100%;
+    border-collapse: separate;
+    border-spacing: 0;
+    font-size: var(--text-ui-table);
+    line-height: 1.3;
+    color: var(--color-ui-fg);
+  }
+
+  /* ----- шапка -----
+     Липкость включается только внутри области прокрутки: вложенные таблицы
+     (расшифровка в раскрытой строке, список групп в «Подробностях») своей
+     прокрутки не имеют, и их шапка не должна прилипать к окну */
+  .ui-table-wrap .ui-table thead th {
+    position: sticky;
+    inset-block-start: 0;
+    z-index: 3;
+  }
+
+  .ui-table thead th {
+    block-size: var(--ui-head-h);
+    padding: var(--ui-cell-y) var(--ui-cell-x);
+    background-color: var(--color-ui-surface-sunken);
+    color: var(--color-ui-fg-muted);
+    border-block-end: var(--ui-border-hair) solid var(--color-ui-line-strong);
+    font-family: var(--font-ui-sans);
+    font-size: var(--text-ui-cap);
+    font-weight: 600;
+    letter-spacing: var(--tracking-ui-cap);
+    text-transform: none;
+    text-align: start;
+    white-space: nowrap;
+    vertical-align: bottom;
+  }
+
+  /* Сортируемая шапка (ТЗ С1: сортировка по любой колонке) */
+  .ui-table thead th[aria-sort] {
+    cursor: pointer;
+    user-select: none;
+    transition: color var(--ui-dur-fast) var(--ease-ui);
+  }
+
+  .ui-table thead th[aria-sort]:hover {
+    color: var(--color-ui-fg);
+  }
+
+  .ui-table thead th[aria-sort="ascending"],
+  .ui-table thead th[aria-sort="descending"] {
+    color: var(--color-ui-fg);
+  }
+
+  .ui-table thead th[aria-sort="ascending"]::after {
+    content: " \2191";
+    color: var(--color-ui-accent);
+  }
+
+  .ui-table thead th[aria-sort="descending"]::after {
+    content: " \2193";
+    color: var(--color-ui-accent);
+  }
+
+  /* ----- тело ----- */
+  .ui-table tbody td,
+  .ui-table tbody th {
+    block-size: var(--ui-row-h);
+    padding: var(--ui-cell-y) var(--ui-cell-x);
+    background-color: var(--color-ui-sheet);
+    border-block-end: var(--ui-border-hair) solid var(--color-ui-line-soft);
+    font-weight: 400;
+    vertical-align: middle;
+  }
+
+  /* Выравнивание задаётся только там, где браузер ставит своё: `th` по
+     умолчанию центрируется. У `td` умолчание и так `start`, и лишняя
+     декларация перебивала бы примитив `.ui-num` */
+  .ui-table tbody th {
+    text-align: start;
+  }
+
+  /* Вертикальная разлиновка. Таблица тянется во всю рабочую ширину, колонок
+     немного — без линий цифра отрывается от своего заголовка */
+  .ui-table tbody td + td,
+  .ui-table tbody td + th,
+  .ui-table tbody th + td,
+  .ui-table tfoot td + td,
+  .ui-table tfoot th + td,
+  .ui-table thead th + th {
+    border-inline-start: var(--ui-border-hair) solid var(--color-ui-line-soft);
+  }
+
+  /* Зебра: строк десятки, глаз не должен терять строку по ширине таблицы */
+  .ui-table tbody tr:nth-child(even) > * {
+    background-color: var(--color-ui-sheet-alt);
+  }
+
+  /* Ховер строки читается на обеих полосах зебры */
+  .ui-table tbody tr:hover > * {
+    background-color: var(--color-ui-accent-soft);
+  }
+
+  /* Раскрытая расшифровка / выбранная строка — отдельная плоскость, а не
+     тот же тон, что у наведения: иначе раскрытую строку не отличить от той,
+     под которой просто стоит курсор */
+  .ui-table tbody tr[aria-selected="true"] > *,
+  .ui-table tbody tr[data-expanded="true"] > * {
+    background-color: var(--color-ui-surface-sunken);
+  }
+
+  .ui-table tbody tr[aria-selected="true"]:hover > *,
+  .ui-table tbody tr[data-expanded="true"]:hover > * {
+    background-color: var(--color-ui-accent-soft);
+  }
+
+  /* Строка, исключённая из расчёта: приглушается, но остаётся читаемой */
+  .ui-table tbody tr[data-muted="true"] > * {
+    color: var(--color-ui-fg-muted);
+  }
+
+  /* ----- липкая колонка номера заказа (первая слева) ----- */
+  .ui-table .ui-col-key {
+    border-inline-end: var(--ui-border-hair) solid var(--color-ui-line-strong);
+    font-weight: 600;
+    white-space: nowrap;
+  }
+
+  .ui-table-wrap .ui-table .ui-col-key {
+    position: sticky;
+    inset-inline-start: 0;
+    z-index: 2;
+  }
+
+  .ui-table-wrap .ui-table thead .ui-col-key {
+    z-index: 5;
+  }
+
+  .ui-table-wrap .ui-table tfoot .ui-col-key {
+    z-index: 4;
+  }
+
+  /* ----- строка итогов: липкая снизу, всегда видна (ТЗ 9) ----- */
+  .ui-table-wrap .ui-table tfoot td,
+  .ui-table-wrap .ui-table tfoot th {
+    position: sticky;
+    inset-block-end: 0;
+    z-index: 3;
+  }
+
+  .ui-table tfoot td,
+  .ui-table tfoot th {
+    block-size: var(--ui-row-h);
+    padding: var(--ui-cell-y) var(--ui-cell-x);
+    background-color: var(--color-ui-surface-sunken);
+    border-block-start: var(--ui-border-hair) solid var(--color-ui-line-strong);
+    font-weight: 600;
+    vertical-align: middle;
+  }
+
+  .ui-table tfoot th {
+    text-align: start;
+  }
+
+  /* ----- модификаторы плотности ----- */
+  .ui-table-dense tbody td,
+  .ui-table-dense tbody th {
+    block-size: 26px;
+    padding-block: 3px;
+    font-size: 12px;
+  }
+
+  .ui-table-comfy tbody td,
+  .ui-table-comfy tbody th {
+    block-size: 36px;
+    padding-block: 8px;
+  }
+
+  /* Граница между блоками колонок (CC/CD/CE | брак | CF | итоги):
+     структурная граница обязана отличаться от разлиновки внутри блока */
+  .ui-table .ui-col-split {
+    border-inline-start: var(--ui-border-hair) solid var(--color-ui-line-strong);
+  }
+
+  /* Пустое состояние таблицы: содержательное, не «нет строк» */
+  .ui-table-empty {
+    padding: 40px var(--ui-cell-x);
+    text-align: center;
+    color: var(--color-ui-fg-weak);
+    background-color: var(--color-ui-sheet);
+  }
+
+  /* Текст ограничен мерой, поэтому центрировать надо сам блок */
+  .ui-table-empty .ui-notice-text {
+    margin-inline: auto;
+  }
+
+  .ui-table-empty .ui-notice-actions {
+    justify-content: center;
+  }
+
+  /* ---------------------------------------------------------------------
+     Денежная ячейка
+     Ноль пишется 0,00; пустая ячейка = «нет данных» (ТЗ 5.3.2)
+     --------------------------------------------------------------------- */
+  .ui-num {
+    font-family: var(--font-ui-num);
+    font-size: var(--text-ui-num);
+    font-variant-numeric: tabular-nums lining-nums;
+    font-feature-settings:
+      "tnum" 1,
+      "lnum" 1;
+    text-align: end;
+    white-space: nowrap;
+  }
+
+  /* Внутри таблицы выравнивание денежной ячейки обязано побеждать правило
+     ячейки в любой части таблицы: шапка, тело, итоги (0,2,1 против 0,1,2) */
+  .ui-table th.ui-num,
+  .ui-table td.ui-num,
+  .ui-table th.ui-pct,
+  .ui-table td.ui-pct {
+    text-align: end;
+  }
+
+  /* По той же причине: техподпись в ячейке остаётся техподписью и в плотной
+     таблице — иначе GUID несопоставленной группы набирается размером данных */
+  .ui-table th.ui-micro,
+  .ui-table td.ui-micro {
+    font-size: var(--text-ui-micro);
+    color: var(--color-ui-fg-muted);
+  }
+
+  .ui-num-strong {
+    font-weight: 600;
+  }
+
+  /* Пустая денежная ячейка получает штриховку: видно, что данных нет,
+     и её невозможно спутать с 0,00 */
+  .ui-table td.ui-num:empty {
+    background-image: repeating-linear-gradient(
+      45deg,
+      var(--color-ui-wash) 0 3px,
+      transparent 3px 8px
+    );
+  }
+
+  /* Доля в процентах: та же табличная сетка цифр */
+  .ui-pct {
+    font-variant-numeric: tabular-nums lining-nums;
+    text-align: end;
+    white-space: nowrap;
+    color: var(--color-ui-fg-weak);
+  }
+
+  /* ---------------------------------------------------------------------
+     Вкладки — три представления одних данных (ТЗ С3)
+     --------------------------------------------------------------------- */
+  .ui-tabs {
+    display: flex;
+    align-items: stretch;
+    gap: 2px;
+    border-block-end: var(--ui-border-hair) solid var(--color-ui-line);
+  }
+
+  .ui-tab {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 12px 9px;
+    margin-block-end: calc(var(--ui-border-hair) * -1);
+    border: 0;
+    border-radius: var(--radius-ui) var(--radius-ui) 0 0;
+    background-color: transparent;
+    color: var(--color-ui-fg-muted);
+    font-size: var(--text-ui-ui);
+    font-weight: 500;
+    letter-spacing: 0;
+    text-transform: none;
+    white-space: nowrap;
+    cursor: pointer;
+    transition:
+      color var(--ui-dur-fast) var(--ease-ui),
+      background-color var(--ui-dur-fast) var(--ease-ui);
+  }
+
+  .ui-tab::after {
+    content: "";
+    position: absolute;
+    inset-block-end: 0;
+    inset-inline: 0;
+    block-size: var(--ui-rule-thin);
+    background-color: transparent;
+  }
+
+  .ui-tab:hover {
+    color: var(--color-ui-fg);
+    background-color: var(--color-ui-wash);
+  }
+
+  .ui-tab[aria-selected="true"] {
+    color: var(--color-ui-accent);
+  }
+
+  .ui-tab[aria-selected="true"]::after {
+    background-color: var(--color-ui-accent);
+  }
+
+  .ui-tab:disabled,
+  .ui-tab[aria-disabled="true"] {
+    color: var(--color-ui-fg-faint);
+    cursor: not-allowed;
+  }
+
+  .ui-tab:disabled:hover,
+  .ui-tab[aria-disabled="true"]:hover {
+    background-color: transparent;
+    color: var(--color-ui-fg-faint);
+  }
+
+  .ui-tab:disabled::after,
+  .ui-tab[aria-disabled="true"]::after {
+    background-color: transparent;
+  }
+
+  /* Счётчик внутри вкладки: сколько строк за ней стоит */
+  .ui-tab-count {
+    display: inline-flex;
+    align-items: center;
+    padding-inline: 6px;
+    border-radius: var(--radius-ui-full);
+    background-color: var(--color-ui-surface-sunken);
+    font-size: var(--text-ui-micro);
+    font-weight: 500;
+    letter-spacing: 0;
+    color: var(--color-ui-fg-muted);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .ui-tab[aria-selected="true"] .ui-tab-count {
+    background-color: var(--color-ui-accent-soft);
+    color: var(--color-ui-accent);
+  }
+
+  /* =====================================================================
+     КАРКАС ПРИЛОЖЕНИЯ
+     Шапка одинакова на всех маршрутах: период виден всегда, включая экраны
+     ошибок (ТЗ 9.1). Страница не прокручивается — прокручиваются таблицы.
+     ===================================================================== */
+  .ui-shell {
+    display: grid;
+    grid-template-rows: auto auto 1fr;
+    flex: 1;
+    min-block-size: 100vh;
+    min-inline-size: 0;
+  }
+
+  /* Шапка приложения лежит на своей плоскости во всю ширину окна, а её
+     содержимое держит рабочую ширину — как и строка контекста под ней */
+  .ui-header-bar {
+    background-color: var(--color-ui-surface);
+    border-block-end: var(--ui-border-hair) solid var(--color-ui-line);
+  }
+
+  .ui-header,
+  .ui-context,
+  .ui-main {
+    inline-size: 100%;
+    max-inline-size: var(--ui-shell-w);
+    margin-inline: auto;
+    padding-inline: 24px;
+  }
+
+  .ui-header {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+    align-items: center;
+    gap: var(--ui-gap-lg);
+    padding-block: 12px;
+  }
+
+  .ui-header > :first-child {
+    justify-self: start;
+  }
+
+  .ui-header > :last-child {
+    justify-self: end;
+  }
+
+  /* Логотип: нейтральный текстовый знак, без фирменной графики */
+  .ui-brand {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    text-decoration: none;
+    color: var(--color-ui-fg);
+  }
+
+  .ui-brand:hover {
+    color: var(--color-ui-fg);
+    text-decoration: none;
+  }
+
+  .ui-brand-name {
+    display: block;
+    font-size: 15px;
+    font-weight: 600;
+    line-height: 1.2;
+    letter-spacing: -0.015em;
+  }
+
+  .ui-brand:hover .ui-brand-name {
+    color: var(--color-ui-accent);
+  }
+
+  .ui-brand-sub {
+    display: block;
+    margin-block-start: 1px;
+    font-size: 11px;
+    font-weight: 400;
+    letter-spacing: 0;
+    text-transform: none;
+    color: var(--color-ui-fg-muted);
+  }
+
+  .ui-header-side {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: flex-end;
+    gap: var(--ui-gap);
+  }
+
+  /* Строка контекста: период и плашки состояния под шапкой */
+  .ui-context {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--ui-gap);
+    padding-block: 10px;
+    border-block-end: var(--ui-border-hair) solid var(--color-ui-line);
+  }
+
+  /* Период — данные, а не надзаголовок */
+  .ui-context .ui-kicker {
+    font-size: var(--text-ui-table);
+    font-weight: 500;
+    letter-spacing: 0;
+    text-transform: none;
+    color: var(--color-ui-fg);
+  }
+
+  .ui-main {
+    min-block-size: 0;
+    min-inline-size: 0;
+    padding-block: var(--ui-gap-lg) 48px;
+  }
+
+  /* =====================================================================
+     ЭКРАН
+     ===================================================================== */
+  .ui-screen {
+    display: flex;
+    flex-direction: column;
+    gap: var(--ui-gap-screen);
+    min-inline-size: 0;
+  }
+
+  .ui-screen-head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: var(--ui-gap);
+    padding-block: 4px 12px;
+  }
+
+  .ui-screen-head .ui-title {
+    margin-block-start: 6px;
+  }
+
+  .ui-screen-head .ui-hint {
+    margin-block-start: 6px;
+  }
+
+  /* Черта раздела держится за заголовок экрана, а не висит в ритме блоков */
+  .ui-screen > .ui-rule-accent {
+    margin-block-start: calc(var(--ui-gap-screen) * -1);
+  }
+
+  .ui-screen > .ui-rule-accent + * {
+    margin-block-start: 4px;
+  }
+
+  .ui-screen-actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 8px;
+  }
+
+  /* Вертикальный ритм внутри карточек и блоков-сообщений */
+  .ui-card:not(.ui-card-flush):not(.ui-launch) > * + * {
+    margin-block-start: var(--ui-gap);
+  }
+
+  /* Отбивка между абзацами обязана быть больше межстрочного расстояния,
+     иначе два абзаца читаются как один */
+  .ui-notice > * + * {
+    margin-block-start: 10px;
+  }
+
+  /* =====================================================================
+     ИНДИКАТОР ДОСТУПНОСТИ СЕРВИСА
+     Состояния различаются и цветом, и заливкой: различие обязано читаться
+     в монохроме и при дальтонизме (критерий приёмки 11.7).
+     ===================================================================== */
+  .ui-service {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+  }
+
+  .ui-status-dot {
+    position: relative;
+    display: inline-block;
+    flex: none;
+    inline-size: 10px;
+    block-size: 10px;
+    border: var(--ui-border) solid var(--color-ui-fg-faint);
+    border-radius: var(--radius-ui-full);
+    background-color: transparent;
+  }
+
+  /* Доступен — плоскость залита */
+  .ui-status-dot[data-state="available"] {
+    background-color: var(--color-ui-success);
+    border-color: var(--color-ui-success);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-ui-success) 18%, transparent);
+  }
+
+  /* Недоступен — залито и перечёркнуто: признак не только цветовой */
+  .ui-status-dot[data-state="unavailable"] {
+    background-color: var(--color-ui-danger);
+    border-color: var(--color-ui-danger);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-ui-danger) 18%, transparent);
+  }
+
+  .ui-status-dot[data-state="unavailable"]::after {
+    content: "";
+    position: absolute;
+    inset-inline: -1px;
+    inset-block-start: 1px;
+    block-size: 2px;
+    border-radius: var(--radius-ui-full);
+    background-color: var(--color-ui-surface);
+  }
+
+  /* Проверяем — штриховка */
+  .ui-status-dot[data-state="checking"] {
+    border-color: var(--color-ui-warn);
+    background-image: repeating-linear-gradient(
+      45deg,
+      var(--color-ui-warn) 0 2px,
+      transparent 2px 4px
+    );
+  }
+
+  /* Неизвестно — пустая плоскость в разомкнутой рамке */
+  .ui-status-dot[data-state="unknown"] {
+    border-style: dashed;
+    border-color: var(--color-ui-fg-faint);
+  }
+
+  /* =====================================================================
+     ПОЛЕ ПЕРИОДА
+     Свободный ввод — главный; панель выбора только заполняет поле.
+     Разбор периода делает бэкенд (ТЗ 5.3.3).
+     ===================================================================== */
+  .ui-period {
+    position: relative;
+    inline-size: 100%;
+    min-inline-size: 380px;
+    max-inline-size: 560px;
+  }
+
+  .ui-period-row {
+    display: flex;
+    align-items: stretch;
+    gap: 8px;
+  }
+
+  .ui-period-control {
+    position: relative;
+    flex: 1 1 auto;
+    min-inline-size: 0;
+  }
+
+  .ui-period-control .ui-input {
+    padding-inline-end: 32px;
+  }
+
+  /* Кнопка «▾» живёт внутри рамки поля, не рядом с ней */
+  .ui-period-toggle {
+    position: absolute;
+    inset-inline-end: 3px;
+    inset-block: 3px;
+    inline-size: 24px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border: 0;
+    border-radius: var(--radius-ui-sm);
+    background-color: transparent;
+    color: var(--color-ui-fg-muted);
+    font-size: 11px;
+    line-height: 1;
+    cursor: pointer;
+    transition:
+      background-color var(--ui-dur-fast) var(--ease-ui),
+      color var(--ui-dur-fast) var(--ease-ui);
+  }
+
+  .ui-period-toggle:hover {
+    background-color: var(--color-ui-wash);
+    color: var(--color-ui-fg);
+  }
+
+  .ui-period-toggle[aria-expanded="true"] {
+    background-color: var(--color-ui-accent-soft);
+    color: var(--color-ui-accent);
+  }
+
+  .ui-period-toggle:focus-visible {
+    outline: var(--ui-border) solid var(--color-ui-focus);
+    outline-offset: 0;
+  }
+
+  .ui-period-toggle:disabled {
+    color: var(--color-ui-fg-faint);
+    background-color: transparent;
+    cursor: not-allowed;
+  }
+
+  /* Панель выбора: висит под полем, ничего не отправляет */
+  .ui-period-picker {
+    position: absolute;
+    z-index: 30;
+    inset-inline-start: 0;
+    /* высота ярлыка (12px × 1.35 + 4px отбивка) плюс высота строки поля */
+    inset-block-start: calc(var(--ui-control-h) + 24px);
+    inline-size: 300px;
+    max-inline-size: 100%;
+    padding: 12px;
+    border: var(--ui-border-hair) solid var(--color-ui-line);
+    border-radius: var(--radius-ui-lg);
+    background-color: var(--color-ui-surface);
+    box-shadow: var(--shadow-ui-lg);
+  }
+
+  .ui-period-picker .ui-hint {
+    margin-block-start: 8px;
+  }
+
+  .ui-period-picker-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    margin-block-end: 8px;
+    padding-block-end: 6px;
+    border-block-end: var(--ui-border-hair) solid var(--color-ui-line);
+  }
+
+  .ui-period-picker-head .ui-num {
+    font-size: var(--text-ui-h3);
+    font-weight: 600;
+    text-align: center;
+  }
+
+  .ui-period-picker-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 4px;
+  }
+
+  .ui-period-month {
+    block-size: 28px;
+    padding-inline: 4px;
+    border: var(--ui-border-hair) solid transparent;
+    border-radius: var(--radius-ui-sm);
+    background-color: transparent;
+    color: var(--color-ui-fg);
+    font-size: 12px;
+    line-height: 1;
+    text-align: center;
+    cursor: pointer;
+    transition:
+      background-color var(--ui-dur-fast) var(--ease-ui),
+      color var(--ui-dur-fast) var(--ease-ui);
+  }
+
+  .ui-period-month:hover {
+    background-color: var(--color-ui-accent-soft);
+    color: var(--color-ui-accent);
+  }
+
+  .ui-period-month:active {
+    background-color: var(--color-ui-accent);
+    color: var(--color-ui-on-accent);
+  }
+
+  .ui-period-month:disabled {
+    background-color: transparent;
+    color: var(--color-ui-fg-faint);
+    cursor: not-allowed;
+  }
+
+  /* Чипы быстрого заполнения: подставляют текст, запрос не шлют */
+  .ui-period-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-block-start: 8px;
+  }
+
+  .ui-chip {
+    display: inline-flex;
+    align-items: center;
+    block-size: 24px;
+    padding-inline: 10px;
+    border: var(--ui-border-hair) solid var(--color-ui-line);
+    border-radius: var(--radius-ui-full);
+    background-color: var(--color-ui-surface);
+    color: var(--color-ui-fg-weak);
+    font-size: var(--text-ui-cap);
+    font-weight: 400;
+    letter-spacing: 0;
+    white-space: nowrap;
+    cursor: pointer;
+    transition:
+      border-color var(--ui-dur-fast) var(--ease-ui),
+      color var(--ui-dur-fast) var(--ease-ui),
+      background-color var(--ui-dur-fast) var(--ease-ui);
+  }
+
+  .ui-chip:hover {
+    border-color: var(--color-ui-accent-line);
+    background-color: var(--color-ui-accent-soft);
+    color: var(--color-ui-accent);
+  }
+
+  .ui-chip:active {
+    background-color: var(--color-ui-accent);
+    color: var(--color-ui-on-accent);
+    border-color: var(--color-ui-accent);
+  }
+
+  .ui-chip:disabled {
+    border-color: var(--color-ui-line);
+    background-color: transparent;
+    color: var(--color-ui-fg-faint);
+    cursor: not-allowed;
+  }
+
+  .ui-chip:disabled:hover {
+    background-color: transparent;
+    color: var(--color-ui-fg-faint);
+  }
+
+  /* Пояснения в поле периода — техподпись в постоянной шапке, а не лид экрана */
+  .ui-period .ui-hint,
+  .ui-period-picker .ui-hint {
+    margin-block-start: 6px;
+    font-size: var(--text-ui-micro);
+    line-height: 1.4;
+    max-inline-size: none;
+  }
+
+  /* =====================================================================
+     БЛОК-СООБЩЕНИЕ
+     Несущий примитив: предупреждения предпросмотра, панель ошибки, экран
+     несходимости. Отказ по сверке — штатное состояние (ТЗ С4): сигнал несут
+     линейка слева и тон плоскости, а не восклицательный знак.
+     ===================================================================== */
+  /* Блок занимает свою естественную ширину, а не всю строку экрана: текст
+     держит меру и обрывается, а рамка иначе шла бы по краю пустоты.
+     `fit-content` вместо `auto` отключает растяжку flex-элемента по
+     поперечной оси — блок ведёт себя одинаково и в ритме экрана
+     (`.ui-screen` — колоночный flex), и внутри карточки */
+  .ui-notice {
+    position: relative;
+    display: block;
+    overflow: hidden;
+    inline-size: fit-content;
+    max-inline-size: min(100%, var(--ui-notice-w));
+    padding: 12px 16px 12px 18px;
+    border: var(--ui-border-hair) solid var(--color-ui-line);
+    border-radius: var(--radius-ui-lg);
+    background-color: var(--color-ui-surface);
+    color: var(--color-ui-fg);
+    font-size: var(--text-ui-ui);
+    line-height: 1.5;
+  }
+
+  .ui-notice::before {
+    content: "";
+    position: absolute;
+    inset-block: 0;
+    inset-inline-start: 0;
+    inline-size: var(--ui-rule);
+    background-color: var(--color-ui-fg-faint);
+  }
+
+  /* Нейтральное пояснение */
+  .ui-notice-neutral::before {
+    background-color: var(--color-ui-fg-faint);
+  }
+
+  /* Внимание */
+  .ui-notice-warn {
+    border-color: var(--color-ui-warn-line);
+    background-color: var(--color-ui-warn-soft);
+  }
+
+  .ui-notice-warn::before {
+    background-color: var(--color-ui-warn);
+  }
+
+  /* Отказ */
+  .ui-notice-deny {
+    border-color: var(--color-ui-danger-line);
+    background-color: var(--color-ui-danger-soft);
+  }
+
+  .ui-notice-deny::before {
+    background-color: var(--color-ui-danger);
+  }
+
+  /* Однострочное пояснение без отбивки. Поля уже, значит и потолок уже —
+     иначе два соседних блока-сообщения стояли бы по разным правым краям */
+  .ui-notice-tight {
+    max-inline-size: min(100%, var(--ui-notice-w-tight));
+    padding: 8px 12px 8px 16px;
+    font-size: var(--text-ui-table);
+    line-height: 1.45;
+  }
+
+  .ui-notice-title {
+    margin: 0;
+    font-size: var(--text-ui-h3);
+    font-weight: 600;
+    line-height: 1.35;
+    letter-spacing: -0.005em;
+  }
+
+  /* Абзац объяснения — основной текст интерфейса в карточках и диалогах */
+  .ui-notice-text {
+    margin: 0;
+    max-inline-size: var(--ui-measure);
+    font-size: var(--text-ui-ui);
+    line-height: 1.5;
+  }
+
+  .ui-notice-actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+    margin-block-start: var(--ui-gap);
+  }
+
+  /* Каждая ошибка сопровождается действием (ТЗ 8.2), но пустой слот
+     не должен оставлять дыру в вёрстке */
+  .ui-notice-actions:empty {
+    display: none;
+  }
+
+  /* =====================================================================
+     СЧЁТЧИКИ
+     ===================================================================== */
+  .ui-counters {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+    gap: var(--ui-gap);
+  }
+
+  .ui-counter {
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-start;
+    gap: 4px;
+    min-inline-size: 0;
+    padding: 12px 14px;
+    border: var(--ui-border-hair) solid var(--color-ui-line);
+    border-radius: var(--radius-ui-lg);
+    background-color: var(--color-ui-surface);
+    box-shadow: var(--shadow-ui-sm);
+  }
+
+  /* Денежный счётчик шире: сумме нужна строка целиком */
+  .ui-counter-wide {
+    grid-column: span 2;
+  }
+
+  .ui-counter-label {
+    font-family: var(--font-ui-sans);
+    font-size: var(--text-ui-cap);
+    font-weight: 400;
+    letter-spacing: var(--tracking-ui-cap);
+    color: var(--color-ui-fg-muted);
+  }
+
+  /* Составной селектор: значение крупнее, чем задаёт `.ui-num` на том же теге */
+  .ui-counter .ui-counter-value {
+    font-size: 21px;
+    font-weight: 600;
+    line-height: 1.15;
+    letter-spacing: var(--tracking-ui-tight);
+    text-align: start;
+    font-variant-numeric: tabular-nums lining-nums;
+  }
+
+  /* =====================================================================
+     ПАНЕЛЬ НАД ТАБЛИЦЕЙ
+     ===================================================================== */
+  .ui-toolbar {
+    display: flex;
+    align-items: center;
+    gap: var(--ui-gap);
+    padding: 10px 14px;
+    border-block-end: var(--ui-border-hair) solid var(--color-ui-line);
+    background-color: var(--color-ui-surface-soft);
+  }
+
+  /* Фильтров может быть много — они переносятся, а не сжимаются в нечитаемое */
+  .ui-toolbar-wrap {
+    flex-wrap: wrap;
+    align-items: flex-end;
+  }
+
+  .ui-toolbar .ui-section {
+    margin: 0;
+  }
+
+  .ui-toolbar > .ui-input {
+    inline-size: auto;
+    flex: 0 1 380px;
+    min-inline-size: 220px;
+  }
+
+  .ui-toolbar > .ui-micro {
+    flex: 1 1 auto;
+  }
+
+  /* Внутри карточки-под-таблицу рамку держит карточка: двойной обводки нет */
+  .ui-card-flush .ui-table-wrap {
+    border-width: 0;
+    border-radius: 0;
+  }
+
+  .ui-field {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-inline-size: 150px;
+  }
+
+  .ui-field-grow {
+    flex: 1 1 240px;
+  }
+
+  .ui-field .ui-label {
+    margin-block-end: 0;
+  }
+
+  .ui-field .ui-input {
+    inline-size: 100%;
+  }
+
+  /* =====================================================================
+     РАСКРЫВАЕМЫЙ БЛОК «ПОДРОБНОСТИ»
+     Технические детали не попадают в основной текст (ТЗ 8.1)
+     ===================================================================== */
+  .ui-details {
+    margin-block-start: 4px;
+    border-block-start: var(--ui-border-hair) solid var(--color-ui-line);
+  }
+
+  .ui-details > summary {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding-block: 8px;
+    list-style: none;
+    cursor: pointer;
+    font-family: var(--font-ui-sans);
+    font-size: var(--text-ui-table);
+    font-weight: 500;
+    letter-spacing: 0;
+    color: var(--color-ui-fg-muted);
+    transition: color var(--ui-dur-fast) var(--ease-ui);
+  }
+
+  .ui-details > summary::-webkit-details-marker {
+    display: none;
+  }
+
+  .ui-details > summary::before {
+    content: "+";
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    inline-size: 15px;
+    block-size: 15px;
+    border: var(--ui-border-hair) solid currentColor;
+    border-radius: var(--radius-ui-sm);
+    font-size: 11px;
+    line-height: 1;
+  }
+
+  .ui-details[open] > summary::before {
+    content: "−";
+  }
+
+  .ui-details > summary:hover,
+  .ui-details[open] > summary {
+    color: var(--color-ui-fg);
+  }
+
+  .ui-details > summary:focus-visible {
+    outline: var(--ui-border) solid var(--color-ui-focus);
+    outline-offset: 2px;
+    border-radius: var(--radius-ui-sm);
+  }
+
+  .ui-details-body {
+    display: flex;
+    flex-direction: column;
+    gap: var(--ui-gap);
+    padding: 4px 0 12px 12px;
+    border-inline-start: var(--ui-border-hair) solid var(--color-ui-line);
+  }
+
+  /* Вложенная таблица собственной прокрутки не имеет — рамку берёт на себя */
+  .ui-details-body .ui-table,
+  .ui-row-detail .ui-table {
+    border: var(--ui-border-hair) solid var(--color-ui-line);
+    border-radius: var(--radius-ui);
+  }
+
+  /* =====================================================================
+     ДИАЛОГ
+     Нативный <dialog>: свойство `display` не переопределяется — иначе окно
+     перестанет закрываться.
+     ===================================================================== */
+  .ui-dialog {
+    inline-size: calc(100vw - 48px);
+    max-inline-size: 560px;
+    max-block-size: calc(100vh - 96px);
+    padding: 20px;
+    border: var(--ui-border-hair) solid var(--color-ui-line);
+    border-radius: var(--radius-ui-lg);
+    background-color: var(--color-ui-surface);
+    color: var(--color-ui-fg);
+    box-shadow: var(--shadow-ui-lg);
+    overflow: auto;
+  }
+
+  .ui-dialog::backdrop {
+    background-color: rgb(9 9 11 / 0.5);
+    backdrop-filter: blur(2px);
+  }
+
+  .ui-dialog-title {
+    margin: 0 0 var(--ui-gap);
+    padding-block-end: 12px;
+    border-block-end: var(--ui-border-hair) solid var(--color-ui-line);
+    font-size: var(--text-ui-h2);
+    font-weight: 600;
+    line-height: 1.3;
+    letter-spacing: var(--tracking-ui-tight);
+  }
+
+  .ui-dialog-body {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .ui-dialog-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-block-start: var(--ui-gap-lg);
+    padding-block-start: var(--ui-gap);
+    border-block-start: var(--ui-border-hair) solid var(--color-ui-line);
+  }
+
+  .ui-dialog-actions:empty {
+    display: none;
+  }
+
+  /* =====================================================================
+     ПОДСКАЗКА К ТЕРМИНУ
+     Раскрывается по клику: экономист читает подсказку, а не проглядывает.
+     Живёт внутри `th`, в том числе липкого, — отсюда высокий z-index
+     и снятие наследования шапки (разрядка, nowrap, выравнивание).
+     ===================================================================== */
+  /* Якорь подсказки: пузырь позиционируется абсолютно, а шапка таблицы
+     позиционированным предком не является — точку отсчёта задаёт эта обёртка */
+  .ui-hint-host {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+  }
+
+  .ui-hint-mark {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex: none;
+    inline-size: 15px;
+    block-size: 15px;
+    padding: 0;
+    border: var(--ui-border-hair) solid var(--color-ui-line-strong);
+    border-radius: var(--radius-ui-full);
+    background-color: transparent;
+    color: var(--color-ui-fg-muted);
+    font-family: var(--font-ui-sans);
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0;
+    line-height: 1;
+    cursor: help;
+    transition:
+      background-color var(--ui-dur-fast) var(--ease-ui),
+      color var(--ui-dur-fast) var(--ease-ui),
+      border-color var(--ui-dur-fast) var(--ease-ui);
+  }
+
+  .ui-hint-mark:hover {
+    border-color: var(--color-ui-accent);
+    color: var(--color-ui-accent);
+  }
+
+  .ui-hint-mark[aria-expanded="true"] {
+    background-color: var(--color-ui-accent);
+    border-color: var(--color-ui-accent);
+    color: var(--color-ui-on-accent);
+  }
+
+  /* Пузырь всплывает поверх ячеек */
+  .ui-hint-bubble {
+    position: absolute;
+    z-index: 40;
+    inset-block-start: calc(100% + 6px);
+    inset-inline-start: 0;
+    inline-size: max-content;
+    max-inline-size: min(320px, 60vw);
+    padding: 8px 10px;
+    border: var(--ui-border-hair) solid var(--color-ui-line);
+    border-radius: var(--radius-ui);
+    background-color: var(--color-ui-surface);
+    color: var(--color-ui-fg);
+    box-shadow: var(--shadow-ui-lg);
+    font-family: var(--font-ui-sans);
+    font-size: var(--text-ui-table);
+    font-weight: 400;
+    line-height: 1.45;
+    letter-spacing: normal;
+    text-align: start;
+    text-transform: none;
+    white-space: normal;
+  }
+
+  /* =====================================================================
+     МЕЛКИЕ ПРИМИТИВЫ
+     ===================================================================== */
+
+  /* Техническая подпись рядом с содержательным текстом */
+  .ui-micro {
+    font-size: var(--text-ui-micro);
+    line-height: 1.4;
+    color: var(--color-ui-fg-muted);
+  }
+
+  /* Ограничение меры абзаца там, где текст стоит вне карточки */
+  .ui-measure {
+    max-inline-size: var(--ui-measure);
+  }
+
+  /* Определения в «Подробностях»: период, операция, код ответа */
+  .ui-kv {
+    display: grid;
+    grid-template-columns: max-content minmax(0, 1fr);
+    gap: 4px var(--ui-gap);
+    margin: 0;
+  }
+
+  .ui-kv dt {
+    font-family: var(--font-ui-sans);
+    font-size: var(--text-ui-table);
+    font-weight: 500;
+    letter-spacing: 0;
+    color: var(--color-ui-fg-muted);
+  }
+
+  .ui-kv dd {
+    margin: 0;
+    font-size: var(--text-ui-table);
+    word-break: break-word;
+  }
+
+  /* Ответ сервиса дословно: каждая позиция символа на своём месте */
+  .ui-pre {
+    margin: 0;
+    max-block-size: 260px;
+    overflow: auto;
+    padding: 10px 12px;
+    border: var(--ui-border-hair) solid var(--color-ui-line);
+    border-radius: var(--radius-ui);
+    background-color: var(--color-ui-surface-sunken);
+    font-family: var(--font-ui-mono);
+    font-size: 12px;
+    line-height: 1.5;
+    white-space: pre-wrap;
+    word-break: break-word;
+    scrollbar-width: thin;
+  }
+
+  /* Нумерованные шаги «Что делать» */
+  .ui-steps {
+    counter-reset: ui-step;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .ui-steps > li {
+    position: relative;
+    counter-increment: ui-step;
+    padding-inline-start: 34px;
+  }
+
+  .ui-steps > li + li {
+    margin-block-start: var(--ui-gap-lg);
+  }
+
+  .ui-steps > li::before {
+    content: counter(ui-step);
+    position: absolute;
+    inset-inline-start: 0;
+    inset-block-start: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    inline-size: 22px;
+    block-size: 22px;
+    border-radius: var(--radius-ui-full);
+    background-color: var(--color-ui-accent-soft);
+    color: var(--color-ui-accent);
+    font-size: 12px;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .ui-steps > li > * + * {
+    margin-block-start: 8px;
+  }
+
+  /* =====================================================================
+     РАСКРЫТИЕ СТРОКИ СВОДА
+     Расшифровка заказа по статьям внутри таблицы: отдельная плоскость,
+     зебра и ховер на неё не действуют.
+     ===================================================================== */
+  .ui-table tbody tr.ui-row-detail > td {
+    padding: var(--ui-gap) 14px var(--ui-gap-lg);
+    background-color: var(--color-ui-surface-sunken);
+    border-block-end: var(--ui-border-hair) solid var(--color-ui-line-strong);
+    white-space: normal;
+  }
+
+  .ui-row-detail .ui-micro {
+    margin-block-end: var(--ui-gap);
+  }
+
+  /* Надзаголовок раскрытой строки — подпись внутри таблицы, а не заголовок экрана */
+  .ui-detail-head .ui-kicker {
+    font-size: var(--text-ui-table);
+    font-weight: 600;
+    letter-spacing: 0;
+    text-transform: none;
+    color: var(--color-ui-fg);
+  }
+
+  /* Вложенная таблица не наследует ни ширину в 100 %, ни липкость */
+  .ui-row-detail .ui-table {
+    inline-size: auto;
+    min-inline-size: 420px;
+    background-color: var(--color-ui-sheet);
+  }
+
+  .ui-detail-head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--ui-gap);
+    margin-block-end: 4px;
+  }
+
+  /* =====================================================================
+     ЭКРАН РАСЧЁТА
+     Показывается честно прошедшее время, а не выдуманный процент.
+     ===================================================================== */
+  .ui-calc-time {
+    font-size: 32px;
+    font-weight: 600;
+    line-height: 1.1;
+    letter-spacing: var(--tracking-ui-tight);
+    text-align: start;
+    font-variant-numeric: tabular-nums lining-nums;
+  }
+
+  /* Блок запуска: предупреждение о длительности слева, действие справа (ТЗ 7.1.2) */
+  .ui-launch {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--ui-gap-lg);
+  }
+
+  .ui-launch > :first-child {
+    flex: 1 1 420px;
+    min-inline-size: 0;
+  }
+
+  .ui-launch > :first-child > * + * {
+    margin-block-start: 8px;
+  }
+
+  .ui-launch-action {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 6px;
+    flex: none;
+  }
+
+  .ui-launch-action .ui-hint {
+    text-align: end;
+  }
+
+  /* =====================================================================
+     ПЕРЕКЛЮЧАТЕЛЬ УЧАСТИЯ
+     Флажок плюс плашка: расчётный признак и снятый вручную видны рядом (ТЗ С5).
+     ===================================================================== */
+  .ui-switch {
+    display: inline-flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+    cursor: pointer;
+  }
+
+  .ui-switch input[type="checkbox"] {
+    appearance: none;
+    flex: none;
+    inline-size: 16px;
+    block-size: 16px;
+    border: var(--ui-border-hair) solid var(--color-ui-line-strong);
+    border-radius: var(--radius-ui-sm);
+    background-color: var(--color-ui-surface);
+    background-repeat: no-repeat;
+    background-position: center;
+    background-size: 11px 11px;
+    cursor: pointer;
+    transition:
+      background-color var(--ui-dur-fast) var(--ease-ui),
+      border-color var(--ui-dur-fast) var(--ease-ui);
+  }
+
+  .ui-switch input[type="checkbox"]:hover {
+    border-color: var(--color-ui-accent);
+  }
+
+  /* Галочка нарисована в самом файле: внешних ресурсов не подгружается (ТЗ 10.1).
+     Она белая на акцентной плоскости и потому одинакова в обеих темах */
+  .ui-switch input[type="checkbox"]:checked {
+    background-color: var(--color-ui-accent);
+    border-color: var(--color-ui-accent);
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12'%3E%3Cpath d='M1.8 6.2 4.6 9 10.2 3.1' fill='none' stroke='%23ffffff' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  }
+
+  .ui-switch input[type="checkbox"]:focus-visible {
+    outline: var(--ui-border) solid var(--color-ui-focus);
+    outline-offset: 2px;
+  }
+
+  .ui-switch input[type="checkbox"]:disabled {
+    border-color: var(--color-ui-line);
+    background-color: var(--color-ui-surface-sunken);
+    cursor: not-allowed;
+  }
+
+  .ui-switch:has(input:disabled) {
+    cursor: not-allowed;
+  }
+
+  /* =====================================================================
+     ПЕРЕКЛЮЧАТЕЛЬ ТЕМЫ
+     ===================================================================== */
+  .ui-theme-toggle {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    inline-size: var(--ui-control-h-sm);
+    block-size: var(--ui-control-h-sm);
+    padding: 0;
+    border: var(--ui-border-hair) solid var(--color-ui-line);
+    border-radius: var(--radius-ui);
+    background-color: var(--color-ui-surface);
+    color: var(--color-ui-fg-muted);
+    cursor: pointer;
+    transition:
+      background-color var(--ui-dur-fast) var(--ease-ui),
+      color var(--ui-dur-fast) var(--ease-ui),
+      border-color var(--ui-dur-fast) var(--ease-ui);
+  }
+
+  .ui-theme-toggle:hover {
+    background-color: var(--color-ui-surface-sunken);
+    border-color: var(--color-ui-line-strong);
+    color: var(--color-ui-fg);
+  }
+
+  .ui-theme-toggle svg {
+    inline-size: 14px;
+    block-size: 14px;
+  }
+
+  /* =====================================================================
+     КНИГА .XLSX
+     Сетка ячеек поверх `.ui-table`: буквы колонок, номера строк, строка
+     формул. Браузер формулы не пересчитывает (ТЗ 4.2.3) — формульная ячейка
+     помечена знаком, а не спрятана.
+     ===================================================================== */
+  .ui-formula-bar {
+    display: flex;
+    align-items: center;
+    gap: var(--ui-gap);
+    min-block-size: 34px;
+    padding: 4px 10px;
+    border: var(--ui-border-hair) solid var(--color-ui-line);
+    border-radius: var(--radius-ui);
+    background-color: var(--color-ui-surface);
+  }
+
+  .ui-formula-bar .ui-formula-ref {
+    flex: none;
+    min-inline-size: 72px;
+    padding-inline-end: 10px;
+    border-inline-end: var(--ui-border-hair) solid var(--color-ui-line);
+    font-size: var(--text-ui-table);
+    font-weight: 600;
+    text-align: start;
+  }
+
+  .ui-formula-text {
+    flex: 1 1 auto;
+    min-inline-size: 0;
+    overflow-x: auto;
+    font-family: var(--font-ui-mono);
+    font-size: 12px;
+    line-height: 1.4;
+    white-space: nowrap;
+    scrollbar-width: thin;
+  }
+
+  .ui-formula-bar .ui-micro {
+    flex: none;
+  }
+
+  /* ----- сетка ----- */
+  .ui-grid {
+    inline-size: auto;
+    min-inline-size: 100%;
+  }
+
+  /* Угловая ячейка и колонка номеров строк — служебные, как в Excel */
+  .ui-grid .ui-grid-corner,
+  .ui-grid .ui-grid-head {
+    text-align: center;
+  }
+
+  .ui-grid .ui-grid-corner {
+    inline-size: 46px;
+    min-inline-size: 46px;
+  }
+
+  .ui-table tbody th.ui-grid-index {
+    inline-size: 46px;
+    min-inline-size: 46px;
+    padding-inline: 4px;
+    background-color: var(--color-ui-surface-sunken);
+    color: var(--color-ui-fg-muted);
+    font-size: var(--text-ui-micro);
+    font-weight: 500;
+    text-align: center;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .ui-grid .ui-grid-cell {
+    position: relative;
+    max-inline-size: 340px;
+    padding: 2px 6px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    cursor: cell;
+  }
+
+  .ui-grid .ui-grid-cell[data-kind="number"] {
+    text-align: end;
+    font-variant-numeric: tabular-nums lining-nums;
+  }
+
+  /* Пустая ячейка книги остаётся пустой: штриховка «нет данных» здесь не к месту —
+     в книге пустых ячеек по определению много */
+  .ui-grid .ui-grid-cell[data-kind="empty"] {
+    background-image: none;
+  }
+
+  /* Правленая ячейка: акцентная отбивка слева и промывка плоскости */
+  .ui-grid .ui-grid-cell[data-edited="true"] {
+    background-color: var(--color-ui-accent-soft);
+    border-inline-start: var(--ui-rule) solid var(--color-ui-accent);
+    font-weight: 600;
+  }
+
+  /* Выбранная ячейка: вырубка по контуру, без смещения соседей */
+  .ui-grid .ui-grid-cell[aria-selected="true"] {
+    outline: var(--ui-border) solid var(--color-ui-accent);
+    outline-offset: -2px;
+  }
+
+  .ui-grid-input {
+    inline-size: 100%;
+    min-inline-size: 60px;
+    block-size: 22px;
+    padding-inline: 4px;
+    border: 0;
+    border-radius: 0;
+    outline: var(--ui-border) solid var(--color-ui-accent);
+    outline-offset: -2px;
+    background-color: var(--color-ui-sheet);
+    font-family: inherit;
+    font-size: inherit;
+  }
+
+  /* Знак формульной ячейки: «ƒ» — формула, «≈» — значение могло устареть */
+  .ui-cell-flag {
+    margin-inline-start: 4px;
+    color: var(--color-ui-accent);
+    font-size: 10px;
+    font-weight: 600;
+    cursor: help;
+  }
+
+  /* ----- вкладки листов: внизу, как в Excel ----- */
+  .ui-sheet-tabs {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 2px;
+    padding-block-start: 4px;
+    border-block-start: var(--ui-border-hair) solid var(--color-ui-line);
+  }
+
+  /* Вкладки листов держатся за сетку, а не плавают в ритме экрана */
+  .ui-screen > .ui-card + .ui-sheet-tabs {
+    margin-block-start: calc(var(--ui-gap-screen) * -1);
+  }
+
+  .ui-sheet-tab {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 14px;
+    border: var(--ui-border-hair) solid transparent;
+    border-radius: 0 0 var(--radius-ui) var(--radius-ui);
+    background-color: var(--color-ui-surface-sunken);
+    color: var(--color-ui-fg-weak);
+    font-size: 12px;
+    font-weight: 500;
+    letter-spacing: 0;
+    white-space: nowrap;
+    cursor: pointer;
+    transition:
+      background-color var(--ui-dur-fast) var(--ease-ui),
+      color var(--ui-dur-fast) var(--ease-ui);
+  }
+
+  .ui-sheet-tab::before {
+    content: "";
+    position: absolute;
+    inset-block-start: 0;
+    inset-inline: 0;
+    block-size: var(--ui-rule-thin);
+    background-color: transparent;
+  }
+
+  .ui-sheet-tab:hover {
+    background-color: var(--color-ui-surface);
+    color: var(--color-ui-fg);
+  }
+
+  .ui-sheet-tab[aria-selected="true"] {
+    background-color: var(--color-ui-surface);
+    border-color: var(--color-ui-line);
+    color: var(--color-ui-accent);
+  }
+
+  .ui-sheet-tab[aria-selected="true"]::before {
+    background-color: var(--color-ui-accent);
+  }
+
+  .ui-sheet-tab:disabled,
+  .ui-sheet-tab[aria-disabled="true"] {
+    color: var(--color-ui-fg-faint);
+    cursor: not-allowed;
+    background-color: transparent;
+    background-image: repeating-linear-gradient(
+      45deg,
+      var(--color-ui-wash) 0 3px,
+      transparent 3px 8px
+    );
+  }
+
+  .ui-sheet-tab:disabled::before,
+  .ui-sheet-tab[aria-disabled="true"]::before {
+    background-color: transparent;
+  }
+}
